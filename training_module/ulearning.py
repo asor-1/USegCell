@@ -16,8 +16,16 @@ def preprocess_image(image):
     # Normalize
     image = image.astype(np.float32) / 255.0
     
+    # Check if the image is grayscale or RGB
+    if len(image.shape) == 2:
+        # Grayscale image
+        gray_image = image
+    else:
+        # RGB image
+        gray_image = color.rgb2gray(image)
+    
     # Extract HOG features
-    hog_features = hog(color.rgb2gray(image), pixels_per_cell=(16, 16),
+    hog_features = hog(gray_image, pixels_per_cell=(16, 16),
                        cells_per_block=(1, 1), visualize=False)
     
     # Reshape HOG features to match image dimensions
@@ -25,13 +33,17 @@ def preprocess_image(image):
     hog_image = np.repeat(np.repeat(hog_image, 16, axis=0), 16, axis=1)
     
     # Combine original image with HOG features
-    combined_image = np.concatenate([image, hog_image[..., np.newaxis]], axis=-1)
+    if len(image.shape) == 2:
+        combined_image = np.dstack([image, hog_image])
+    else:
+        combined_image = np.dstack([image, hog_image[..., np.newaxis]])
+    
     return combined_image
 
 def segment_image(model, image, user_segmented_cells=None):
     preprocessed = preprocess_image(image)
-    _, segmentation = model.predict(preprocessed[np.newaxis, ...])
-    segmentation = segmentation[0, ..., 0]
+    output = model.predict(preprocessed[np.newaxis, ...])
+    segmentation = output[0, ..., -1]  # Get the last channel, which is the segmentation map
     
     # Apply contour tracing and spatial gradient
     segmentation = apply_advanced_segmentation(segmentation)
